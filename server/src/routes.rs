@@ -47,13 +47,10 @@ async fn login(
 async fn session(
     State(service): State<Arc<IdentityService>>,
     headers: HeaderMap,
-) -> Result<Json<IdentityResponse<SessionView>>, IdentityHttpError> {
-    let session = service
-        .authenticate(&headers)
-        .await?
-        .ok_or_else(|| IdentityHttpError::unauthorized("会话无效或已过期"))?;
+) -> Result<Json<IdentityResponse<Option<SessionView>>>, IdentityHttpError> {
+    let session = service.authenticate(&headers).await?;
     Ok(Json(IdentityResponse {
-        data: session.view(),
+        data: session.map(|session| session.view()),
     }))
 }
 

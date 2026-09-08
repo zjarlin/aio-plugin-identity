@@ -202,16 +202,13 @@ pub async fn load_session() -> Result<Option<SessionView>, String> {
         .send()
         .await
         .map_err(|error| error.to_string())?;
-    if response.status() == 401 {
-        return Ok(None);
-    }
     if !response.ok() {
         return Err(response.text().await.unwrap_or_default());
     }
     response
-        .json::<IdentityResponse<SessionView>>()
+        .json::<IdentityResponse<Option<SessionView>>>()
         .await
-        .map(|response| Some(response.data))
+        .map(|response| response.data)
         .map_err(|error| error.to_string())
 }
 
