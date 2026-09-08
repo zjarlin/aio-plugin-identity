@@ -99,7 +99,7 @@ fn PasswordDialog(on_close: EventHandler<()>) -> Element {
                     });
                 },
                 DialogTitle { "修改密码" }
-                DialogDescription { "新密码至少需要 12 个字符，成功后其他会话将失效。" }
+                DialogDescription { "新密码需要符合当前密码策略，成功后其他会话将失效。" }
                 label { r#for: "current-password", "当前密码" }
                 Input {
                     id: "current-password",

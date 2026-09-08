@@ -84,6 +84,7 @@ pub struct LoginResult {
 pub struct IdentityService {
     pool: PgPool,
     secure_cookie: bool,
+    password_min_length: usize,
 }
 
 impl IdentityService {
@@ -94,12 +95,26 @@ impl IdentityService {
         let secure_cookie = env::var("AIO_SESSION_SECURE")
             .map(|value| value != "0" && value != "false")
             .unwrap_or(false);
+        let password_min_length = env::var("AIO_PASSWORD_MIN_LENGTH")
+            .ok()
+            .map(|value| {
+                value
+                    .parse::<usize>()
+                    .context("AIO_PASSWORD_MIN_LENGTH 必须是整数")
+            })
+            .transpose()?
+            .unwrap_or(12);
+        ensure!(
+            (8..=128).contains(&password_min_length),
+            "AIO_PASSWORD_MIN_LENGTH 必须在 8 到 128 之间"
+        );
         Ok(Self {
             pool: PgPoolOptions::new()
                 .max_connections(10)
                 .connect_lazy(&database_url)
                 .context("创建身份数据库连接池失败")?,
             secure_cookie,
+            password_min_length,
         })
     }
 
@@ -126,7 +141,7 @@ impl IdentityService {
             }
             Err(_) => anyhow::bail!("首次启动必须配置 AIO_BOOTSTRAP_PASSWORD"),
         };
-        ensure!(password.len() >= 12, "初始密码至少需要 12 个字符");
+        self.validate_password(&password, "初始密码")?;
         let user_id = uuid::Uuid::new_v4().to_string();
         let password_hash = password::hash(&password)?;
         let mut transaction = self.pool.begin().await?;
@@ -276,7 +291,7 @@ impl IdentityService {
             "账号只能包含字母、数字、连字符和下划线"
         );
         ensure!(!display_name.is_empty(), "显示名称不能为空");
-        ensure!(password.len() >= 12, "初始密码至少需要 12 个字符");
+        self.validate_password(password, "初始密码")?;
         let password = password.to_owned();
         let password_hash = tokio::task::spawn_blocking(move || password::hash(&password))
             .await
@@ -303,7 +318,7 @@ impl IdentityService {
         session: &SessionContext,
         request: &PasswordRequest,
     ) -> Result<bool> {
-        ensure!(request.new_password.len() >= 12, "新密码至少需要 12 个字符");
+        self.validate_password(&request.new_password, "新密码")?;
         let encoded = sqlx::query_scalar::<_, String>(
             "SELECT password_hash FROM identity_users WHERE id = $1",
         )
@@ -354,6 +369,15 @@ impl IdentityService {
     pub fn expired_cookie(&self) -> String {
         let secure = if self.secure_cookie { "; Secure" } else { "" };
         format!("{COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{secure}")
+    }
+
+    fn validate_password(&self, password: &str, label: &str) -> Result<()> {
+        ensure!(
+            password.chars().count() >= self.password_min_length,
+            "{label}至少需要 {} 个字符",
+            self.password_min_length
+        );
+        Ok(())
     }
 }
 
