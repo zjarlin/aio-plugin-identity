@@ -259,6 +259,45 @@ impl IdentityService {
         Ok(result.rows_affected() == 1)
     }
 
+    pub async fn create_user(
+        &self,
+        tenant_id: &str,
+        account: &str,
+        display_name: &str,
+        password: &str,
+    ) -> Result<String> {
+        let account = account.trim();
+        let display_name = display_name.trim();
+        ensure!(!account.is_empty(), "账号不能为空");
+        ensure!(
+            account.chars().all(
+                |character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_')
+            ),
+            "账号只能包含字母、数字、连字符和下划线"
+        );
+        ensure!(!display_name.is_empty(), "显示名称不能为空");
+        ensure!(password.len() >= 12, "初始密码至少需要 12 个字符");
+        let password = password.to_owned();
+        let password_hash = tokio::task::spawn_blocking(move || password::hash(&password))
+            .await
+            .context("密码摘要任务失败")??;
+        let user_id = uuid::Uuid::new_v4().to_string();
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query("INSERT INTO identity_users (id, account, display_name, password_hash) VALUES ($1, $2, $3, $4)")
+            .bind(&user_id).bind(account).bind(display_name).bind(password_hash)
+            .execute(&mut *transaction).await?;
+        sqlx::query(
+            "INSERT INTO tenant_memberships (tenant_id, user_id, display_name) VALUES ($1, $2, $3)",
+        )
+        .bind(tenant_id)
+        .bind(&user_id)
+        .bind(display_name)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(user_id)
+    }
+
     pub async fn change_password(
         &self,
         session: &SessionContext,
