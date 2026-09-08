@@ -5,9 +5,15 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+aio-plugin-identity-model = { path = "../model" }
 anyhow = "1.0.99"
+argon2 = "0.5.3"
 axum = "0.8.6"
 dill = "0.15.0"
+sha2 = "0.10.9"
+sqlx = { version = "0.8.6", default-features = false, features = ["postgres", "runtime-tokio-rustls"] }
+tokio = { version = "1.47.1", features = ["rt"] }
+uuid = { version = "1.18.1", features = ["v4"] }
 
 [lints]
 workspace = true
