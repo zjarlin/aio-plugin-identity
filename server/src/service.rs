@@ -237,6 +237,28 @@ impl IdentityService {
         Ok(())
     }
 
+    pub async fn switch_tenant(&self, session: &SessionContext, tenant_id: &str) -> Result<bool> {
+        let membership = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM tenant_memberships WHERE tenant_id = $1 AND user_id = $2)",
+        )
+        .bind(tenant_id)
+        .bind(&session.user_id)
+        .fetch_one(&self.pool)
+        .await?;
+        if !membership {
+            return Ok(false);
+        }
+        let result = sqlx::query(
+            "UPDATE auth_sessions SET tenant_id = $2 WHERE id = $1 AND user_id = $3 AND expires_at > now()",
+        )
+        .bind(&session.session_id)
+        .bind(tenant_id)
+        .bind(&session.user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() == 1)
+    }
+
     pub async fn change_password(
         &self,
         session: &SessionContext,

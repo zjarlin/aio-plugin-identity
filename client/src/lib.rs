@@ -1,6 +1,12 @@
-use aio_plugin_identity_model::{IdentityErrorResponse, IdentityResponse, LoginRequest};
+use aio_plugin_identity_model::{
+    IdentityErrorResponse, IdentityResponse, LoginRequest, PasswordRequest,
+};
 use az_dioxus_admin_shell::{ApplicationPage, ApplicationPlugin, ApplicationScene};
-use az_ui_components::{button::Button, input::Input};
+use az_ui_components::{
+    button::{Button, ButtonVariant},
+    dialog::{Dialog, DialogDescription, DialogTitle},
+    input::Input,
+};
 use dill::CatalogBuilder;
 use dioxus::prelude::*;
 
@@ -33,6 +39,7 @@ pub fn register(builder: &mut CatalogBuilder) {
 #[allow(non_snake_case)]
 fn ProfilePage() -> Element {
     let session = use_resource(load_session);
+    let mut changing_password = use_signal(|| false);
     rsx! {
         section {
             h2 { "个人资料" }
@@ -45,6 +52,84 @@ fn ProfilePage() -> Element {
                 Some(Ok(None)) => rsx! { p { role: "alert", "会话已失效" } },
                 Some(Err(error)) => rsx! { p { role: "alert", "读取会话失败：{error}" } },
                 None => rsx! { p { "正在读取会话" } },
+            }
+            Button {
+                r#type: "button",
+                variant: ButtonVariant::Outline,
+                onclick: move |_| changing_password.set(true),
+                "修改密码"
+            }
+            if changing_password() {
+                PasswordDialog {
+                    on_close: move |_| changing_password.set(false),
+                }
+            }
+        }
+    }
+}
+
+#[allow(non_snake_case)]
+#[component]
+fn PasswordDialog(on_close: EventHandler<()>) -> Element {
+    let mut current_password = use_signal(String::new);
+    let mut new_password = use_signal(String::new);
+    let mut pending = use_signal(|| false);
+    let mut error = use_signal(|| None::<String>);
+    rsx! {
+        Dialog {
+            open: true,
+            on_open_change: move |open: bool| if !open { on_close.call(()) },
+            form {
+                class: "grid gap-3",
+                onsubmit: move |event| {
+                    event.prevent_default();
+                    let request = PasswordRequest {
+                        current_password: current_password(),
+                        new_password: new_password(),
+                    };
+                    pending.set(true);
+                    error.set(None);
+                    spawn(async move {
+                        match change_password(request).await {
+                            Ok(()) => on_close.call(()),
+                            Err(message) => error.set(Some(message)),
+                        }
+                        pending.set(false);
+                    });
+                },
+                DialogTitle { "修改密码" }
+                DialogDescription { "新密码至少需要 12 个字符，成功后其他会话将失效。" }
+                label { r#for: "current-password", "当前密码" }
+                Input {
+                    id: "current-password",
+                    r#type: "password",
+                    autocomplete: "current-password",
+                    aria_label: "当前密码",
+                    value: current_password(),
+                    oninput: move |event: FormEvent| current_password.set(event.value()),
+                }
+                label { r#for: "new-password", "新密码" }
+                Input {
+                    id: "new-password",
+                    r#type: "password",
+                    autocomplete: "new-password",
+                    minlength: 12,
+                    aria_label: "新密码",
+                    value: new_password(),
+                    oninput: move |event: FormEvent| new_password.set(event.value()),
+                }
+                if let Some(message) = error() {
+                    p { role: "alert", "{message}" }
+                }
+                footer { class: "flex justify-end gap-2",
+                    Button {
+                        r#type: "button",
+                        variant: ButtonVariant::Ghost,
+                        onclick: move |_| on_close.call(()),
+                        "取消"
+                    }
+                    Button { r#type: "submit", disabled: pending(), "保存" }
+                }
             }
         }
     }
@@ -131,6 +216,22 @@ pub async fn load_session() -> Result<Option<SessionView>, String> {
 
 async fn login(request: LoginRequest) -> Result<(), String> {
     let response = gloo_net::http::Request::post("/api/auth/login")
+        .json(&request)
+        .map_err(|error| error.to_string())?
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if response.ok() {
+        return Ok(());
+    }
+    let body = response.text().await.unwrap_or_default();
+    Err(serde_json::from_str::<IdentityErrorResponse>(&body)
+        .map(|response| response.error)
+        .unwrap_or(body))
+}
+
+async fn change_password(request: PasswordRequest) -> Result<(), String> {
+    let response = gloo_net::http::Request::post("/api/auth/password")
         .json(&request)
         .map_err(|error| error.to_string())?
         .send()
