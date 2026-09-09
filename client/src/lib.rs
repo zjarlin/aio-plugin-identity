@@ -3,9 +3,9 @@ use aio_plugin_identity_model::{
 };
 use az_dioxus_admin_shell::{ApplicationPage, ApplicationPlugin, ApplicationScene};
 use az_ui_components::{
-    button::{Button, ButtonVariant},
+    button::{Button, ButtonSize, ButtonVariant},
     dialog::{Dialog, DialogDescription, DialogTitle},
-    input::Input,
+    input::{Input, TextInput},
 };
 use dill::CatalogBuilder;
 use dioxus::prelude::*;
@@ -144,12 +144,15 @@ pub fn LoginPage() -> Element {
     let mut pending = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     rsx! {
-        main { class: "min-h-screen grid place-items-center p-4",
-            article { class: "border p-6 w-full max-w-sm",
-                h1 { "AIO" }
-                p { "登录到你的工作区" }
+        main { class: "min-h-screen grid place-items-center bg-muted p-6",
+            article { class: "w-full max-w-md border bg-background p-8 shadow-sm",
+                header { class: "mb-8 grid gap-2",
+                    p { class: "text-sm font-medium uppercase tracking-wide text-muted-foreground", "AIO WORKSPACE" }
+                    h1 { class: "text-3xl font-semibold tracking-tight", "登录你的工作区" }
+                    p { class: "text-sm text-muted-foreground", "使用账号访问应用、插件和团队资源。" }
+                }
                 form {
-                    class: "grid gap-3",
+                    class: "grid gap-5",
                     onsubmit: move |event| {
                         event.prevent_default();
                         let request = LoginRequest {
@@ -166,32 +169,29 @@ pub fn LoginPage() -> Element {
                             pending.set(false);
                         });
                     },
-                    label { r#for: "account", "账号" }
-                    Input {
-                        id: "account",
-                        name: "account",
+                    TextInput {
+                        label: "账号",
+                        placeholder: "输入账号",
                         autocomplete: "username",
-                        aria_label: "账号",
                         value: account(),
-                        oninput: move |event: FormEvent| account.set(event.value()),
+                        on_change: move |value| account.set(value),
                     }
-                    label { r#for: "password", "密码" }
-                    Input {
-                        id: "password",
-                        name: "password",
-                        r#type: "password",
+                    TextInput {
+                        label: "密码",
+                        input_type: "password",
+                        placeholder: "输入密码",
                         autocomplete: "current-password",
-                        aria_label: "密码",
                         value: password(),
-                        oninput: move |event: FormEvent| password.set(event.value()),
+                        on_change: move |value| password.set(value),
                     }
                     if let Some(message) = error() {
-                        p { role: "alert", "{message}" }
+                        p { class: "border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive", role: "alert", "{message}" }
                     }
-                    Button { r#type: "submit", disabled: pending(),
+                    Button { r#type: "submit", size: ButtonSize::Lg, disabled: pending(), class: "w-full",
                         if pending() { "正在登录" } else { "登录" }
                     }
                 }
+                footer { class: "mt-8 border-t pt-4 text-center text-xs text-muted-foreground", "AIO · 你的可组合工作台" }
             }
         }
     }
