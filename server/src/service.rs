@@ -157,7 +157,13 @@ impl IdentityService {
             .bind(&user_id).execute(&mut *transaction).await?;
         sqlx::query("INSERT INTO tenant_member_roles (tenant_id, user_id, role_id) VALUES ('default', $1, 'platform-admin') ON CONFLICT DO NOTHING")
             .bind(&user_id).execute(&mut *transaction).await?;
-        for permission in ["plugin:manage", "tenant:manage", "rbac:manage"] {
+        for permission in [
+            "plugin:manage",
+            "tenant:manage",
+            "rbac:manage",
+            "dictionary:manage",
+            "file:manage",
+        ] {
             sqlx::query("INSERT INTO role_permissions (tenant_id, role_id, permission) VALUES ('default', 'platform-admin', $1) ON CONFLICT DO NOTHING")
                 .bind(permission).execute(&mut *transaction).await?;
         }
