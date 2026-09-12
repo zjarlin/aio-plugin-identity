@@ -1,6 +1,10 @@
 use super::http;
 use aio_plugin_identity_model::LoginRequest;
-use az_ui_components::{admin::StatusMessage, button::Button, input::Input};
+use az_ui_components::{
+    admin::StatusMessage,
+    button::{Button, ButtonVariant},
+    input::Input,
+};
 use dioxus::prelude::*;
 
 #[component]
@@ -9,6 +13,7 @@ pub fn LoginPage() -> Element {
     let mut password = use_signal(String::new);
     let mut busy = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
+    let mut registering = use_signal(|| false);
     rsx! {
         main { class: "admin-auth",
             section { class: "admin-auth-form", h1 { "AIO IDEA" } h2 { "账号登录" }
@@ -24,7 +29,9 @@ pub fn LoginPage() -> Element {
                     if let Some(message) = error() { StatusMessage { error: true, message } }
                     Button { r#type: "submit", disabled: busy(), if busy() { "正在登录" } else { "登录" } }
                 }
+                Button { r#type: "button", variant: ButtonVariant::Ghost, disabled: busy(), onclick: move |_| registering.set(true), "注册账号" }
             }
+            if registering() { super::registration::RegistrationDialog { on_close: move |_| registering.set(false) } }
         }
     }
 }

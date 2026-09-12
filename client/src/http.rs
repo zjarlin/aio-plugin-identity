@@ -1,5 +1,6 @@
 use aio_plugin_identity_model::{
-    IdentityErrorResponse, IdentityResponse, LoginRequest, PasswordRequest, SessionView,
+    IdentityErrorResponse, IdentityResponse, LoginRequest, PasswordRequest, RegisterRequest,
+    SessionView,
 };
 use gloo_net::http::Request;
 
@@ -24,10 +25,25 @@ pub(super) async fn login(request: LoginRequest) -> Result<(), String> {
         serde_json::to_string(&request).map_err(|e| e.to_string())?,
     )
     .await?;
-    dioxus::document::eval("window.dispatchEvent(new Event('aio:catalog-invalidated')); return true;")
-        .await
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    refresh_session().await
+}
+
+pub(super) async fn register_account(request: RegisterRequest) -> Result<(), String> {
+    send(
+        "/api/auth/register",
+        serde_json::to_string(&request).map_err(|e| e.to_string())?,
+    )
+    .await?;
+    refresh_session().await
+}
+
+async fn refresh_session() -> Result<(), String> {
+    dioxus::document::eval(
+        "window.dispatchEvent(new Event('aio:catalog-invalidated')); return true;",
+    )
+    .await
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }
 
 pub(super) async fn change_password(request: PasswordRequest) -> Result<(), String> {

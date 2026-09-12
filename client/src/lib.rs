@@ -1,6 +1,7 @@
 mod http;
 mod login;
 mod profile;
+mod registration;
 
 pub use aio_plugin_identity_model::SessionView;
 use az_dioxus_admin_shell::{ApplicationPage, ApplicationPlugin, ApplicationScene};

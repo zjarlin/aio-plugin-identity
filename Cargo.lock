@@ -41,9 +41,11 @@ dependencies = [
  "argon2",
  "axum",
  "dill",
+ "serde_json",
  "sha2",
  "sqlx",
  "tokio",
+ "tower",
  "uuid",
 ]
 
